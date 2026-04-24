@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -869,6 +869,57 @@ hr.d{border:none;border-top:1px solid var(--border-subtle);margin:18px 0;opacity
   .g3,.g2,.g21{grid-template-columns:1fr!important}
   table{font-size:.68rem}
   .tbl th,.tbl td{padding:4px 6px}
+}
+
+/* ══ MOBILE BOTTOM NAV ════════════════════════════════════ */
+.mob-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--card);border-top:1px solid var(--border);
+  z-index:1200;box-shadow:0 -4px 24px rgba(0,0,0,.35);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.mob-nav-item{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:9px 2px 7px;gap:3px;cursor:pointer;
+  color:var(--muted);font-size:.55rem;font-weight:700;letter-spacing:.2px;
+  border:none;background:transparent;font-family:inherit;
+  transition:color .15s;-webkit-tap-highlight-color:transparent;
+}
+.mob-nav-item.mob-active{color:var(--accent)}
+.mob-nav-item.mob-active .mob-nav-icon{
+  background:rgba(56,189,248,.15);border-radius:10px;
+}
+.mob-nav-icon{
+  font-size:1.3rem;line-height:1;
+  padding:4px 10px;border-radius:10px;transition:background .15s;
+}
+
+@media(max-width:700px){
+  /* show bottom nav + FAB */
+  .mob-nav{display:flex}
+  .mob-add-fab{display:block}
+  /* space for bottom nav */
+  body{padding-bottom:80px!important}
+  /* hide desktop back button — bottom nav replaces it */
+  .back-btn{display:none!important}
+  /* all cards scroll horizontally for wide tables */
+  .card{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* modals go full-screen */
+  .modal-overlay .modal-box{
+    position:fixed!important;inset:0!important;
+    max-width:100%!important;border-radius:0!important;
+    margin:0!important;max-height:100dvh!important;
+    overflow-y:auto!important;-webkit-overflow-scrolling:touch;
+  }
+  /* gist setup full-screen */
+  .gist-box{max-width:100%;border-radius:0;min-height:100dvh;justify-content:center;display:flex;flex-direction:column}
+  /* tip tooltip opens upward with enough room */
+  .form-tip-icon::after{width:180px;font-size:.68rem}
+  /* הוסף חודש bar — stack vertically on mobile */
+  #mainAddMonthBar > div{flex-direction:column!important;align-items:stretch!important}
+  /* kpi values bigger on mobile */
+  .kpi-val{font-size:1.15rem!important}
 }
 </style>
 </head>
@@ -5298,6 +5349,19 @@ function showScreen(id){
   document.getElementById('backBtn').style.display = id==='screen-main' ? 'none' : 'inline-flex';
   window.scrollTo({top:0, behavior:'smooth'});
   localStorage.setItem('activeScreen', id);
+  // sync mobile bottom nav
+  const mobMap = {
+    'screen-main':'mobn-main','screen-income':'mobn-income',
+    'screen-portfolio':'mobn-portfolio','screen-insurance':'mobn-insurance',
+    'screen-history':'mobn-history'
+  };
+  document.querySelectorAll('.mob-nav-item').forEach(b=>b.classList.remove('mob-active'));
+  const activeBtn = document.getElementById(mobMap[id]);
+  if(activeBtn) activeBtn.classList.add('mob-active');
+}
+
+function mobNavGo(id){
+  showScreen(id);
 }
 
 function showMain(){
@@ -7319,6 +7383,27 @@ setTimeout(renderPolicyAI, 100);
 
 <!-- Geo Tooltip Bubble -->
 <div id="geoTooltip"></div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- MOBILE: BOTTOM NAV                                      -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<nav class="mob-nav" id="mobNav" role="navigation">
+  <button class="mob-nav-item mob-active" id="mobn-main"      onclick="mobNavGo('screen-main')">
+    <span class="mob-nav-icon">🏠</span>ראשי
+  </button>
+  <button class="mob-nav-item" id="mobn-income"    onclick="mobNavGo('screen-income')">
+    <span class="mob-nav-icon">💰</span>הכנסות
+  </button>
+  <button class="mob-nav-item" id="mobn-portfolio" onclick="mobNavGo('screen-portfolio')">
+    <span class="mob-nav-icon">📈</span>חיסכון
+  </button>
+  <button class="mob-nav-item" id="mobn-insurance" onclick="mobNavGo('screen-insurance')">
+    <span class="mob-nav-icon">🛡️</span>ביטוחים
+  </button>
+  <button class="mob-nav-item" id="mobn-history"   onclick="mobNavGo('screen-history')">
+    <span class="mob-nav-icon">📊</span>היסטוריה
+  </button>
+</nav>
 
 </body>
 </html>
