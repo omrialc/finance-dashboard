@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -690,10 +690,11 @@ hr.d{border:none;border-top:1px solid var(--border-subtle);margin:18px 0;opacity
 @media(max-width:700px){
   body{padding:8px}
   .drag-handle{display:none}
-  .main-nav-grid{grid-template-columns:1fr 1fr!important}
-  .nav-btn{min-height:80px;padding:14px;flex-direction:row;gap:12px;justify-content:flex-start;text-align:right}
-  .nav-btn-icon{font-size:1.8rem}
+  .main-nav-grid{grid-template-columns:1fr!important}
+  .nav-btn{min-height:64px;padding:12px 16px;flex-direction:row;gap:12px;justify-content:flex-start;text-align:right}
+  .nav-btn-icon{font-size:1.6rem}
   .nav-btn-label{font-size:.92rem}
+  .nav-btn-sub{display:none}
   .top-bar{flex-wrap:wrap;position:relative;top:0;padding:10px 13px;gap:8px}
   .top-bar-title{font-size:.85rem}
   .g4{grid-template-columns:1fr 1fr!important}
@@ -1438,6 +1439,8 @@ const fmt  = n => Math.abs(n)>=1000 ? '₪'+Math.round(n).toLocaleString('he-IL'
 const fmtK = n => n>=1000000 ? '₪'+(n/1000000).toFixed(2)+'M' : n>=1000 ? '₪'+(n/1000).toFixed(0)+'K' : '₪'+Math.round(n);
 const pct  = n => (n*100).toFixed(1)+'%';
 const avg  = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
+// ממוצע רק על חודשים שיש בהם הכנסה (> 0) — מונע עיוות מחודשי placeholder ריקים
+const avgNZ = arr => { const f=(arr||[]).filter((_,i)=>(D.income||[])[i]>0); return f.length?f.reduce((a,b)=>a+b,0)/f.length:avg(arr); };
 const sum  = arr => arr.reduce((a,b)=>a+b,0);
 const clr  = n => n>0 ? 'up' : n<0 ? 'dn' : 'na';
 const sign = n => n>0 ? '+' : '';
@@ -1494,9 +1497,9 @@ function render(){
 
 // ── MAIN SCREEN KPI SUMMARY ──────────────────────────────
 function renderMainKPI(){
-  const avgInc  = avg(D.income);
-  const avgExp  = avg(D.total_exp);
-  const avgRate = avg(D.rate)*100;
+  const avgInc  = avgNZ(D.income);
+  const avgExp  = avgNZ(D.total_exp);
+  const avgRate = avgNZ(D.rate)*100;
   const emergencyFund = D.emergency + D.cash_nis + D.forex_usd + D.forex_eur + D.vacation_fund;
   const parentsFinancial = D.study_omri + D.pension_om + D.study_bar + D.pension_b1 + D.pension_b2 + D.gemel + D.exalens + emergencyFund;
   const totalAssets = parentsFinancial + RE_MARKET_VALUE;
@@ -1718,10 +1721,10 @@ function onGoalInput(el){
 
 // ── KPI ──────────────────────────────────────────────
 function renderKPI(){
-  const avgInc = avg(D.income);
-  const avgExp = avg(D.total_exp);
-  const avgRate = avg(D.rate)*100;
-  const avgSavDep = avg(D.sav_dep);
+  const avgInc = avgNZ(D.income);
+  const avgExp = avgNZ(D.total_exp);
+  const avgRate = avgNZ(D.rate)*100;
+  const avgSavDep = avgNZ(D.sav_dep);
   document.getElementById('kpiRow').innerHTML = `
     <div class="card bt-green kpi-green">
       <div class="kpi-icon">💰</div>
@@ -1938,9 +1941,9 @@ function renderNeeds(){
   ];
   const avg2026 = avg(D.needs);
   document.getElementById('needsCard').innerHTML = `
-    <div class="card-title">🏠 הוצאות חיוניות <span>מחזור ${D.exp_months[0]}–${D.exp_months[D.exp_months.length-1]} • ₪</span></div>
+    <div class="card-title">🏠 הוצאות חיוניות <span>מחזור ${D.months[0]}–${D.months[D.months.length-1]} • ₪</span></div>
     <table class="tbl">
-      <tr><th>קטגוריה</th>${D.exp_months.map(m=>`<th>${m}</th>`).join('')}<th>ממוצע 2026</th><th>ממוצע 2025</th></tr>
+      <tr><th>קטגוריה</th>${D.months.map(m=>`<th>${m}</th>`).join('')}<th>ממוצע 2026</th><th>ממוצע 2025</th></tr>
       ${cats.filter(r=>sum(r.v)>0||r.p>0).map(r=>{
         const a26 = avg(r.v);
         const db = diffBadge(a26, r.p);
@@ -2003,9 +2006,9 @@ function renderWants(){
   const avg2026 = avg(D.wants);
   const avg2025 = D.wants_p || 11772;
   document.getElementById('wantsCard').innerHTML = `
-    <div class="card-title">🎉 הוצאות רצונות <span>מחזור ${D.exp_months[0]}–${D.exp_months[D.exp_months.length-1]} • ₪</span></div>
+    <div class="card-title">🎉 הוצאות רצונות <span>מחזור ${D.months[0]}–${D.months[D.months.length-1]} • ₪</span></div>
     <table class="tbl">
-      <tr><th>קטגוריה</th>${D.exp_months.map(m=>`<th>${m}</th>`).join('')}<th>ממוצע 2026</th><th>ממוצע 2025</th></tr>
+      <tr><th>קטגוריה</th>${D.months.map(m=>`<th>${m}</th>`).join('')}<th>ממוצע 2026</th><th>ממוצע 2025</th></tr>
       ${cats.filter(r=>sum(r.v)>0||r.p>0).map(r=>{
         const a26 = avg(r.v);
         const db = diffBadge(a26, r.p);
@@ -3549,6 +3552,7 @@ const PORTFOLIOS = {
       {ticker:'EDV',      qty:7,  price:67.75,   ccy:'USD', yf:true},
       {ticker:'TCH.F94',  qty:20, price:126.28,  ccy:'ILS'},
       {ticker:'POLI',     qty:4,  price:80.40,   ccy:'ILS'},
+      {isCash:true, ticker:'מזומן שקלי', price:0, ccy:'ILS', _basePrice:0},
     ]
   },
   meitav: {
@@ -3564,6 +3568,7 @@ const PORTFOLIOS = {
       {ticker:'SCHD',     qty:8,  price:31.61,   ccy:'USD', yf:true},
       {ticker:'BNO',      qty:9,  price:33.88,   ccy:'USD', yf:true},
       {ticker:'ETHA',     qty:2,  price:14.89,   ccy:'USD', yf:true},
+      {isCash:true, ticker:'מזומן שקלי', price:0, ccy:'ILS', _basePrice:0},
     ]
   },
   psagot: {
@@ -3576,6 +3581,7 @@ const PORTFOLIOS = {
       {ticker:'SCHD',     qty:28, price:31.61,   ccy:'USD', yf:true},
       {ticker:'1159235',  qty:5,  price:350.80,  ccy:'ILS'},
       {ticker:'IBIT',     qty:5,  price:38.42,   ccy:'USD', yf:true},
+      {isCash:true, ticker:'מזומן שקלי', price:0, ccy:'ILS', _basePrice:0},
     ]
   },
 };
@@ -4026,8 +4032,8 @@ let MACRO = {
   cpi_12m:    1.9,   // אינפלציה 12 חודשים אחרונים (%) — עודכן ידנית מרץ 2026, מתעדכן live בטעינה
   cpi_target_lo: 1,  // יעד בנק ישראל — תחתון
   cpi_target_hi: 3,  // יעד בנק ישראל — עליון
-  bi_rate:    4.00,  // ריבית בנק ישראל (%) — עודכן ידנית אפריל 2026
-  prime:      5.50,  // ריבית פריים = BI + 1.5%
+  bi_rate:    3.75,  // ריבית בנק ישראל (%) — עודכן ידנית אפריל 2026
+  prime:      5.25,  // ריבית פריים = BI + 1.5%
   pension_coef: 196, // מקדם קצבה (מקדם המרה) — כיום בישראל
   updated: null,
   source: null,      // 'live' | 'default'
@@ -5725,15 +5731,15 @@ function renderHistoryUpload(){
 function renderHistoryChart(years){
   const el = document.getElementById('historyChartCard');
   if(!el) return;
-  const sum2026 = arr => (arr||[]).reduce((s,v)=>s+v,0);
+  const sum2026 = arr => (arr||[]).filter((_,i)=>(D.income||[])[i]>0).reduce((s,v)=>s+v,0);
   const cur2026 = { year:2026, s:{
-    avgIncome:  Math.round(avg(D.income)),
-    avgExp:     Math.round(avg(D.total_exp)),
-    avgNeeds:   Math.round(avg(D.needs)),
-    avgSavDep:  Math.round(avg(D.sav_dep)),
-    avgRate:    +(avg(D.rate)*100).toFixed(1),
+    avgIncome:  Math.round(avgNZ(D.income)),
+    avgExp:     Math.round(avgNZ(D.total_exp)),
+    avgNeeds:   Math.round(avgNZ(D.needs)),
+    avgSavDep:  Math.round(avgNZ(D.sav_dep)),
+    avgRate:    +(avgNZ(D.rate)*100).toFixed(1),
     annualGap:  Math.round(sum2026(D.income) - sum2026(D.total_exp)),
-    months:     D.months.length,
+    months:     (D.income||[]).filter(v=>v>0).length,
   }};
   const allYears = [...years.map(y=>({year:y, s:historySummary(HISTORY[y])})), cur2026];
   const n = allYears.length;
@@ -5926,7 +5932,10 @@ function renderHistoryIncomeDetail(years){
     ...years.map(y => {
       const grouped = {};   // normalizedLabel → summed avg
       (HISTORY[y].incomeItems || []).forEach(it => {
-        const nl = it.normalizedLabel || normalizeIncomeLabel(it.label);
+        let nl = it.normalizedLabel || normalizeIncomeLabel(it.label);
+        // בשנים 2023 ו-2024 השכר #1 היה עמרי ו-#2 היה בר — הפוך מהמיפוי הנוכחי
+        if((y === 2023 || y === 2024) && nl === 'שכר בר')   nl = 'שכר עמרי';
+        else if((y === 2023 || y === 2024) && nl === 'שכר עמרי') nl = 'שכר בר';
         grouped[nl] = (grouped[nl] || 0) + (it.avg || 0);
       });
       const items = Object.entries(grouped).map(([nl, a]) => ({ normalizedLabel: nl, avg: a }));
@@ -6163,15 +6172,15 @@ function renderHistorySavingsDetail(years){
 function renderHistoryTable(years){
   const el = document.getElementById('historyTableCard');
   if(!el) return;
-  const sum2026 = arr => (arr||[]).reduce((s,v)=>s+v,0);
+  const sum2026 = arr => (arr||[]).filter((_,i)=>(D.income||[])[i]>0).reduce((s,v)=>s+v,0);
   const cur2026 = {
-    avgIncome:  Math.round(avg(D.income)),
-    avgExp:     Math.round(avg(D.total_exp)),
-    avgNeeds:   Math.round(avg(D.needs)),
-    avgSavDep:  Math.round(avg(D.sav_dep)),
-    avgRate:    +(avg(D.rate)*100).toFixed(1),
+    avgIncome:  Math.round(avgNZ(D.income)),
+    avgExp:     Math.round(avgNZ(D.total_exp)),
+    avgNeeds:   Math.round(avgNZ(D.needs)),
+    avgSavDep:  Math.round(avgNZ(D.sav_dep)),
+    avgRate:    +(avgNZ(D.rate)*100).toFixed(1),
     annualGap:  Math.round(sum2026(D.income) - sum2026(D.total_exp)),
-    months:     D.months.length,
+    months:     (D.income||[]).filter(v=>v>0).length,
   };
   const allYears = [...years.map(y=>({year:y, s:historySummary(HISTORY[y])})), {year:2026, s:cur2026}];
   const diff = (cur, prev, higherIsBetter=true) => {
@@ -6463,6 +6472,14 @@ function buildGistPayload(){
 function applyGistPayload(payload){
   if(!payload?.version) return;
   if(payload.D) Object.assign(D, payload.D);
+  // מיגרציה חד-פעמית: תיקון שכר עמרי/בר שנרשמו הפוך בחודש מאי
+  if(!D._salarySwapFixed) {
+    const mayIdx = (D.months||[]).findIndex(m => m === 'מאי');
+    if(mayIdx >= 0 && Array.isArray(D.salary1) && Array.isArray(D.salary2)) {
+      const t = D.salary1[mayIdx]; D.salary1[mayIdx] = D.salary2[mayIdx]; D.salary2[mayIdx] = t;
+    }
+    D._salarySwapFixed = true;
+  }
   if(payload.portfolios){
     Object.entries(payload.portfolios).forEach(([k,v]) => {
       if(PORTFOLIOS[k] && v.holdings?.length) PORTFOLIOS[k].holdings = v.holdings;
@@ -6577,8 +6594,8 @@ function closeModal(id){ document.getElementById(id)?.classList.remove('open'); 
 // ══ ADD MONTH ═════════════════════════════════════════════
 const MONTH_FIELDS_DEF = [
   { section:'💰 הכנסות', fields:[
-    {key:'salary1',     lbl:'משכורת עמרי',    tip:'שכר נטו של עמרי מהמעסיק, כולל בונוסים ומענקים חודשיים'},
-    {key:'salary2',     lbl:'משכורת בר',      tip:'שכר נטו של בר מהמעסיק, כולל בונוסים ומענקים חודשיים'},
+    {key:'salary1',     lbl:'משכורת בר',      tip:'שכר נטו של בר מהמעסיק, כולל בונוסים ומענקים חודשיים'},
+    {key:'salary2',     lbl:'משכורת עמרי',    tip:'שכר נטו של עמרי מהמעסיק, כולל בונוסים ומענקים חודשיים'},
     {key:'other_inc',   lbl:'הכנסה אחרת',     tip:'הכנסות חד-פעמיות: החזרי מס, משיכות מחיסכון, פרילנס, ירושות, מכירת נכסים'},
     {key:'child_ben',   lbl:'קצבת ילדים',     tip:'קצבת ילדים חודשית מביטוח לאומי + דמי לידה'},
     {key:'rent_income', lbl:'שכירות',          tip:'הכנסה חודשית משכר דירה מהנכס שבבעלותכם'},
@@ -6629,6 +6646,9 @@ const MONTH_FIELDS_DEF = [
     {key:'alcohol',         lbl:'אלכוהול',                           tip:'אלכוהול לצרכי בית, אירוח, פאבים ואירועים'},
     {key:'hobbies',         lbl:'תחביבים + גאדג׳טים',               tip:'יצירה, גאדגטים, אלקטרוניקה, פאזלים, ספרים, ציוד ספורט, משחקים'},
     {key:'other_exp',       lbl:'אחר / שונות',                       tip:'הוצאות חד-פעמיות שאינן מתאימות לאף קטגוריה אחרת'},
+  ]},
+  { section:'⚖️ מאזן מזומן', fields:[
+    {key:'cash10', lbl:'מאזן עשירי לעשירי', tip:'כמה כסף נשאר/חסר בחשבון בין ה-10 לחודש הנוכחי לה-10 לחודש הבא. חיובי = עודף, שלילי = גירעון'},
   ]},
   { section:'💼 הפקדות חיסכון', fields:[
     {key:'study_omri_dep',  lbl:'השתלמות עמרי',    tip:'הפקדה חודשית לקרן השתלמות של עמרי (עובד + מעסיק)'},
@@ -6696,18 +6716,26 @@ function submitAddMonth(monthName){
   const incomeKeys  = ['salary1','salary2','other_inc','child_ben','rent_income'];
   const needsKeys   = ['mortgage','arnona','vaad','ins_med','home_ins','kinder','grocery','medical','hygiene','electric','gas','water','baby','fuel','car_maint','transit','loan_repay','bank_fees','fines','prof_adv','beauty'];
   const wantsKeys   = ['food_out','entertain','clothing','vacation_il','vacation_abroad','workers','furniture','home_decor','gifts','pet','subscript','kids_act','cable','inet','tolls','taxi','aliexpress','coffee','gym','alcohol','hobbies','other_exp'];
-  const depositKeys = ['study_omri_dep','study_bar_dep','pension_om_dep','pension_b1_dep','pension_b2_dep','gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep','kid_ariel_dep','kid_rom_dep'];
+  // הפקדות רצוניות בלבד — פנסיה/השתלמות מנוכים כבר מהשכר ברוטו ולא יוצאים מהחשבון
+  const volDepKeys  = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep','kid_ariel_dep','kid_rom_dep'];
   const income    = sumKeys(incomeKeys);
   const needs     = sumKeys(needsKeys);
   const wants     = sumKeys(wantsKeys);
   const total_exp = needs + wants;
-  const sav_dep   = sumKeys(depositKeys);
-  const balance   = income - total_exp - sav_dep;
+  const sav_dep   = sumKeys(volDepKeys);   // רק הפקדות רצוניות
+  const balance   = income - total_exp;    // יתרה לפני העברות לחיסכון
   const rate      = income > 0 ? (income - total_exp) / income : 0;
   ['income','needs','wants','total_exp','sav_dep','balance','rate'].forEach(k=>{ if(!Array.isArray(D[k])) D[k]=[]; });
   D.income[idx] = income; D.needs[idx] = needs; D.wants[idx] = wants;
   D.total_exp[idx] = total_exp; D.sav_dep[idx] = sav_dep;
   D.balance[idx] = balance; D.rate[idx] = rate;
+  // עדכון יתרת מזומן בתיקי ההשקעות בהתאם לסכום ההפקדה החדשה
+  [['exalens','exalens_dep'],['meitav','meitav_dep'],['psagot','psagot_dep']].forEach(([ptfKey,depKey])=>{
+    const dep = D[depKey]?.[idx] || 0;
+    if(!dep) return;
+    const cash = PORTFOLIOS[ptfKey]?.holdings?.find(h=>h.isCash && h.ccy==='ILS');
+    if(cash) cash.price = Math.max(0, (cash.price||0) + dep);
+  });
   closeModal('addMonthModal');
   gistSave();
   render();
@@ -6756,13 +6784,13 @@ function submitEditMonth(idx, monthName){
   const incomeKeys  = ['salary1','salary2','other_inc','child_ben','rent_income'];
   const needsKeys   = ['mortgage','arnona','vaad','ins_med','home_ins','kinder','grocery','medical','hygiene','electric','gas','water','baby','fuel','car_maint','transit','loan_repay','bank_fees','fines','prof_adv','beauty'];
   const wantsKeys   = ['food_out','entertain','clothing','vacation_il','vacation_abroad','workers','furniture','home_decor','gifts','pet','subscript','kids_act','cable','inet','tolls','taxi','aliexpress','coffee','gym','alcohol','hobbies','other_exp'];
-  const depositKeys = ['study_omri_dep','study_bar_dep','pension_om_dep','pension_b1_dep','pension_b2_dep','gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep','kid_ariel_dep','kid_rom_dep'];
+  const volDepKeys  = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep','kid_ariel_dep','kid_rom_dep'];
   const income    = sumKeys(incomeKeys);
   const needs     = sumKeys(needsKeys);
   const wants     = sumKeys(wantsKeys);
   const total_exp = needs + wants;
-  const sav_dep   = sumKeys(depositKeys);
-  const balance   = income - total_exp - sav_dep;
+  const sav_dep   = sumKeys(volDepKeys);
+  const balance   = income - total_exp;
   const rate      = income > 0 ? (income - total_exp) / income : 0;
   ['income','needs','wants','total_exp','sav_dep','balance','rate'].forEach(k=>{
     if(!Array.isArray(D[k])) D[k] = new Array(idx+1).fill(0);
@@ -6771,7 +6799,12 @@ function submitEditMonth(idx, monthName){
   D.income[idx] = income; D.needs[idx] = needs; D.wants[idx] = wants;
   D.total_exp[idx] = total_exp; D.sav_dep[idx] = sav_dep;
   D.balance[idx] = balance; D.rate[idx] = rate;
-  // Restore modal title
+  // עדכון יתרת מזומן בתיקי ההשקעות — ממוצע הפקדות שהשתנו בעריכה
+  [['exalens','exalens_dep'],['meitav','meitav_dep'],['psagot','psagot_dep']].forEach(([ptfKey,depKey])=>{
+    const totalDep = (D[depKey]||[]).reduce((s,v)=>s+v,0);
+    const cash = PORTFOLIOS[ptfKey]?.holdings?.find(h=>h.isCash && h.ccy==='ILS');
+    if(cash && cash._basePrice != null) cash.price = Math.max(0, cash._basePrice + totalDep);
+  });
   document.querySelector('#addMonthModal .modal-title').textContent = '➕ הוספת חודש חדש';
   closeModal('addMonthModal');
   gistSave();
