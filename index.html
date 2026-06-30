@@ -4032,11 +4032,13 @@ let MACRO = {
   cpi_12m:    1.9,   // אינפלציה 12 חודשים אחרונים (%) — עודכן ידנית מרץ 2026, מתעדכן live בטעינה
   cpi_target_lo: 1,  // יעד בנק ישראל — תחתון
   cpi_target_hi: 3,  // יעד בנק ישראל — עליון
+  cpi_year:   null,  // שנת הנתון של ה-CPI (World Bank)
   bi_rate:    3.75,  // ריבית בנק ישראל (%) — עודכן ידנית אפריל 2026
   prime:      5.25,  // ריבית פריים = BI + 1.5%
   pension_coef: 196, // מקדם קצבה (מקדם המרה) — כיום בישראל
+  fx_updated: null,  // שעת עדכון שע"ח
   updated: null,
-  source: null,      // 'live' | 'default'
+  source: null,      // 'live' | 'partial' | 'default'
 };
 
 async function fetchMacroData(){
@@ -4081,14 +4083,15 @@ async function fetchMacroData(){
       if(!d) d = await proxiedFetch(url, 10000);
       const records = Array.isArray(d) ? d[1] : null;
       if(records?.length){
-        // Only use if the data year is current year or at most 1 year old
-        const recent = records.find(r => r.value != null && +r.date >= curYear - 1);
+        // Take the most recent available data (World Bank updates annually, may lag 1-2 years)
+        const recent = records.find(r => r.value != null);
         if(recent && recent.value > -10 && recent.value < 50){
-          MACRO.cpi_12m = +parseFloat(recent.value).toFixed(1);
+          MACRO.cpi_12m  = +parseFloat(recent.value).toFixed(1);
+          MACRO.cpi_year = recent.date;
           gotCPI = true;
           console.log(`✅ CPI (World Bank ${recent.date}): ${MACRO.cpi_12m}%`);
         } else {
-          console.warn(`⚠️ World Bank CPI skipped — latest year ${records.find(r=>r.value!=null)?.date} too old`);
+          console.warn(`⚠️ World Bank CPI: no valid data found`);
         }
       }
     } catch(e){ console.warn('World Bank CPI failed:', e.message); }
@@ -4151,10 +4154,17 @@ function renderMacroBar(){
   const cpiLabel = MACRO.cpi_12m > MACRO.cpi_target_hi ? '⚠️ מעל יעד' : MACRO.cpi_12m < MACRO.cpi_target_lo ? '⚠️ מתחת יעד' : '✅ בטווח יעד';
   const realRate = MACRO.bi_rate - MACRO.cpi_12m;
   const realClr  = realRate > 0 ? 'var(--green)' : 'var(--red)';
-  const srcClr   = MACRO.source === 'live' ? 'var(--green)' : MACRO.source === 'partial' ? 'var(--orange)' : 'var(--muted)';
-  const srcTxt   = MACRO.source === 'live'    ? `🟢 עודכן אוטומטית ${MACRO.updated}`
-                 : MACRO.source === 'partial' ? `🟡 עודכן חלקית ${MACRO.updated} — ערכים חסרים ידניים`
-                 :                              `🔴 ברירת מחדל — לחץ "רענן" או ✎ לעדכון ידני`;
+
+  // Per-card source badges
+  const badge = (live, lbl) => `<span style="display:inline-block;padding:1px 5px;border-radius:4px;font-size:.58rem;font-weight:700;background:${live?'rgba(34,197,94,.15)':'rgba(148,163,184,.12)'};color:${live?'var(--green)':'var(--muted)'}">${live ? '🟢 '+lbl : '🔘 '+lbl}</span>`;
+  const cpiSrc  = MACRO.cpi_year ? badge(true,  `World Bank ${MACRO.cpi_year}`) : badge(false, 'ידני');
+  const rateSrc = badge(false, 'ידני — ב"י');
+  const fxSrc   = MACRO.fx_updated ? badge(true, `עודכן ${MACRO.fx_updated}`) : '';
+
+  // Status row text
+  const fxLine   = MACRO.fx_updated ? `💱 שע"ח: עודכן ${MACRO.fx_updated}` : '💱 שע"ח: ברירת מחדל';
+  const cpiLine  = MACRO.cpi_year   ? `📊 CPI: World Bank ${MACRO.cpi_year} (שנתי)` : `📊 CPI: ידני`;
+  const rateLine = `🏦 ריבית: ידני (ממשק API של ב"י לא פעיל)`;
 
   // Each KPI card — clickable link to Trading Economics (reliable, always works)
   const lnk = (href, borderClr) =>
@@ -4164,13 +4174,13 @@ function renderMacroBar(){
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
     <!-- אינפלציה — Trading Economics Israel CPI -->
     <a ${lnk('https://tradingeconomics.com/israel/inflation-cpi', cpiClr)}>
-      <div style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">📊 אינפלציה שנתית ↗</div>
+      <div style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">📊 אינפלציה שנתית ↗ ${cpiSrc}</div>
       <div style="font-size:1.3rem;font-weight:900;color:${cpiClr}">${MACRO.cpi_12m.toFixed(1)}%</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:3px">${cpiLabel} | יעד ב"י: ${MACRO.cpi_target_lo}%–${MACRO.cpi_target_hi}%</div>
     </a>
     <!-- ריבית בנק ישראל — Trading Economics Israel Interest Rate -->
     <a ${lnk('https://tradingeconomics.com/israel/interest-rate', 'var(--accent)')}>
-      <div style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">🏦 ריבית בנק ישראל ↗</div>
+      <div style="font-size:.6rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">🏦 ריבית בנק ישראל ↗ ${rateSrc}</div>
       <div style="font-size:1.3rem;font-weight:900;color:var(--accent)">${MACRO.bi_rate.toFixed(2)}%</div>
       <div style="font-size:.62rem;color:var(--muted);margin-top:3px">ריבית פריים: <strong style="color:var(--text)">${MACRO.prime.toFixed(2)}%</strong> (ב"י + 1.5%)</div>
     </a>
@@ -4187,10 +4197,10 @@ function renderMacroBar(){
       <div style="font-size:.62rem;color:var(--muted);margin-top:3px">מקדם המרה — צבירה ÷ ${MACRO.pension_coef} = קצבה חודשית</div>
     </a>
   </div>
-  <div style="font-size:.62rem;margin-top:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <span style="color:${srcClr}">${srcTxt}</span>
-    <button onclick="openMacroEditor()" style="background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--accent);font-size:.68rem;cursor:pointer">✎ עריכה ידנית</button>
-    <span style="color:var(--muted);margin-right:auto">| נתונים: World Bank · IMF · TradingView | לחץ קוביה לצפייה בלייב</span>
+  <div style="font-size:.62rem;margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="color:var(--muted)">${fxLine} &nbsp;|&nbsp; ${cpiLine} &nbsp;|&nbsp; ${rateLine}</span>
+    <button onclick="openMacroEditor()" style="margin-right:auto;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:2px 8px;color:var(--accent);font-size:.68rem;cursor:pointer">✎ עריכה ידנית</button>
+    <span style="color:var(--muted);font-size:.58rem">לחץ קוביה → Trading Economics</span>
   </div>`;
 }
 
@@ -4546,41 +4556,43 @@ async function fetchOneTicker(ticker){
   console.log(`✅ ${ticker}: ${q.price} ${isILS?'ILS':'USD'} | chg:${q.change}% | 52H:${q.w52High} 52L:${q.w52Low} | 1Y:${q.ret1y}%`);
 }
 
-// ── FX Rates — Yahoo Finance primary (real-time), open.er-api.com fallback ──
+// ── FX Rates — open.er-api.com primary (CORS-open, daily), Yahoo Finance fallback ──
 async function fetchFXRates(){
   let gotUSD = false, gotEUR = false, gotGBP = false;
 
-  // 1. Yahoo Finance — real-time, same proxy infrastructure as stock quotes
+  // 1. open.er-api.com — daily updates, CORS-open, no proxy needed (most reliable)
   try {
-    const [qUSD, qEUR, qGBP] = await Promise.all([
-      fetchYFQuote('USDILS=X'),
-      fetchYFQuote('EURILS=X'),
-      fetchYFQuote('GBPILS=X'),
-    ]);
-    if(qUSD?.price > 0){ USD_ILS = +qUSD.price.toFixed(4); gotUSD = true; }
-    if(qEUR?.price > 0){ EUR_ILS = +qEUR.price.toFixed(4); gotEUR = true; }
-    if(qGBP?.price > 0){ GBP_ILS = +qGBP.price.toFixed(4); gotGBP = true; }
-    if(gotUSD){ FX_LIVE = true; console.log(`💱 YF (live): USD/ILS=${USD_ILS} EUR/ILS=${EUR_ILS} GBP/ILS=${GBP_ILS}`); }
-  } catch(e){ console.warn('YF FX failed:', e.message); }
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: ctrl.signal });
+    clearTimeout(tid);
+    if(r.ok){
+      const d = await r.json();
+      if(d.result === 'success' && d.rates){
+        const ils = d.rates.ILS, eur = d.rates.EUR, gbp = d.rates.GBP;
+        if(ils){ USD_ILS = +ils.toFixed(4); gotUSD = true; }
+        if(ils && eur){ EUR_ILS = +(ils/eur).toFixed(4); gotEUR = true; }
+        if(ils && gbp){ GBP_ILS = +(ils/gbp).toFixed(4); gotGBP = true; }
+        FX_LIVE = true;
+        MACRO.fx_updated = new Date().toLocaleTimeString('he-IL');
+        console.log(`💱 ER-API (daily): USD/ILS=${USD_ILS} EUR/ILS=${EUR_ILS} GBP/ILS=${GBP_ILS}`);
+      }
+    }
+  } catch(e){ console.warn('ER-API FX failed:', e.message); }
 
-  // 2. Fallback: open.er-api.com (updates daily, CORS-open, no proxy needed)
+  // 2. Fallback: Yahoo Finance via proxy — real-time but requires working proxy
   if(!gotUSD){
     try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 10000);
-      const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: ctrl.signal });
-      clearTimeout(tid);
-      if(r.ok){
-        const d = await r.json();
-        if(d.result === 'success' && d.rates){
-          const ils = d.rates.ILS, eur = d.rates.EUR, gbp = d.rates.GBP;
-          if(ils && !gotUSD){ USD_ILS = +ils.toFixed(4); gotUSD = true; }
-          if(ils && eur && !gotEUR){ EUR_ILS = +(ils/eur).toFixed(4); gotEUR = true; }
-          if(ils && gbp && !gotGBP){ GBP_ILS = +(ils/gbp).toFixed(4); gotGBP = true; }
-          console.log(`💱 ER-API (daily): USD/ILS=${USD_ILS}`);
-        }
-      }
-    } catch(e){ console.warn('ER-API FX failed:', e.message); }
+      const [qUSD, qEUR, qGBP] = await Promise.all([
+        fetchYFQuote('USDILS=X'),
+        fetchYFQuote('EURILS=X'),
+        fetchYFQuote('GBPILS=X'),
+      ]);
+      if(qUSD?.price > 0){ USD_ILS = +qUSD.price.toFixed(4); gotUSD = true; FX_LIVE = true; MACRO.fx_updated = new Date().toLocaleTimeString('he-IL'); }
+      if(qEUR?.price > 0){ EUR_ILS = +qEUR.price.toFixed(4); gotEUR = true; }
+      if(qGBP?.price > 0){ GBP_ILS = +qGBP.price.toFixed(4); gotGBP = true; }
+      if(gotUSD) console.log(`💱 YF (live): USD/ILS=${USD_ILS} EUR/ILS=${EUR_ILS} GBP/ILS=${GBP_ILS}`);
+    } catch(e){ console.warn('YF FX failed:', e.message); }
   }
 
   if(!gotUSD) console.warn('💱 FX fetch failed — using stale defaults');
@@ -6480,6 +6492,17 @@ function applyGistPayload(payload){
     }
     D._salarySwapFixed = true;
   }
+  // מיגרציה חד-פעמית: הסרת חיסכון לכל ילד (kid_ariel_dep + kid_rom_dep) מסכום sav_dep
+  if(!D._kidDepFixed) {
+    if(Array.isArray(D.sav_dep)) {
+      D.sav_dep = D.sav_dep.map((v, i) => {
+        const kidA = (D.kid_ariel_dep?.[i] || 0);
+        const kidR = (D.kid_rom_dep?.[i]   || 0);
+        return Math.max(0, v - kidA - kidR);
+      });
+    }
+    D._kidDepFixed = true;
+  }
   if(payload.portfolios){
     Object.entries(payload.portfolios).forEach(([k,v]) => {
       if(PORTFOLIOS[k] && v.holdings?.length) PORTFOLIOS[k].holdings = v.holdings;
@@ -6716,8 +6739,8 @@ function submitAddMonth(monthName){
   const incomeKeys  = ['salary1','salary2','other_inc','child_ben','rent_income'];
   const needsKeys   = ['mortgage','arnona','vaad','ins_med','home_ins','kinder','grocery','medical','hygiene','electric','gas','water','baby','fuel','car_maint','transit','loan_repay','bank_fees','fines','prof_adv','beauty'];
   const wantsKeys   = ['food_out','entertain','clothing','vacation_il','vacation_abroad','workers','furniture','home_decor','gifts','pet','subscript','kids_act','cable','inet','tolls','taxi','aliexpress','coffee','gym','alcohol','hobbies','other_exp'];
-  // הפקדות רצוניות בלבד — פנסיה/השתלמות מנוכים כבר מהשכר ברוטו ולא יוצאים מהחשבון
-  const volDepKeys  = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep','kid_ariel_dep','kid_rom_dep'];
+  // הפקדות רצוניות בלבד — פנסיה/השתלמות/חיסכון לכל ילד מנוכים כבר מהשכר ברוטו ולא יוצאים מהחשבון
+  const volDepKeys  = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep'];
   const income    = sumKeys(incomeKeys);
   const needs     = sumKeys(needsKeys);
   const wants     = sumKeys(wantsKeys);
@@ -6784,7 +6807,7 @@ function submitEditMonth(idx, monthName){
   const incomeKeys  = ['salary1','salary2','other_inc','child_ben','rent_income'];
   const needsKeys   = ['mortgage','arnona','vaad','ins_med','home_ins','kinder','grocery','medical','hygiene','electric','gas','water','baby','fuel','car_maint','transit','loan_repay','bank_fees','fines','prof_adv','beauty'];
   const wantsKeys   = ['food_out','entertain','clothing','vacation_il','vacation_abroad','workers','furniture','home_decor','gifts','pet','subscript','kids_act','cable','inet','tolls','taxi','aliexpress','coffee','gym','alcohol','hobbies','other_exp'];
-  const volDepKeys  = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep','kid_ariel_dep','kid_rom_dep'];
+  const volDepKeys  = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep'];
   const income    = sumKeys(incomeKeys);
   const needs     = sumKeys(needsKeys);
   const wants     = sumKeys(wantsKeys);
