@@ -1035,6 +1035,18 @@ hr.d{border:none;border-top:1px solid var(--border-subtle);margin:18px 0;opacity
   </div>
 
 
+  <!-- Weather / Time Widget -->
+  <div id="weatherWidget" style="display:flex;align-items:center;gap:16px;background:rgba(15,23,42,.65);border:1px solid rgba(51,65,85,.5);border-radius:14px;padding:12px 20px;margin-bottom:14px;backdrop-filter:blur(8px)">
+    <div style="text-align:right;min-width:90px;flex-shrink:0">
+      <div id="ww-time" style="font-size:1.9rem;font-weight:800;color:var(--accent);letter-spacing:.04em;font-variant-numeric:tabular-nums">--:--</div>
+      <div id="ww-date" style="font-size:.68rem;color:var(--muted);margin-top:2px;white-space:nowrap">טוען...</div>
+    </div>
+    <div style="width:1px;height:44px;background:rgba(51,65,85,.7);flex-shrink:0"></div>
+    <div id="ww-weather" style="flex:1;min-width:0">
+      <div style="color:var(--muted);font-size:.78rem">⏳ טוען מזג אוויר...</div>
+    </div>
+  </div>
+
   <!-- הוסף חודש — כפתור ראשי מעל הכל -->
   <div id="mainAddMonthBar" style="margin-bottom:18px"></div>
 
@@ -1470,6 +1482,128 @@ function syncPtfTotals(){
   const ps = ptfLiveTotal('psagot');  if(ps > 0) D.ariel_invest= ps;
 }
 
+// ── בדיקת גלגול שנתי לתשואות YTD קרנות ──────────────────────────────────
+function checkFundYtdRollover(){
+  const curYear = new Date().getFullYear();
+  if(!D.fund_ytd)  D.fund_ytd  = {};
+  if(!D.fund_hist) D.fund_hist = {};
+  const FUND_KEYS = ['study_omri','study_bar','pension_om','pension_b1','pension_b2','gemel'];
+  FUND_KEYS.forEach(key => {
+    const ytd = D.fund_ytd[key];
+    if(!ytd){ D.fund_ytd[key] = {year:curYear, ret:null}; return; }
+    if(ytd.year < curYear && ytd.ret != null){
+      if(!D.fund_hist[key]) D.fund_hist[key] = {};
+      D.fund_hist[key][ytd.year] = ytd.ret;
+      D.fund_ytd[key] = {year:curYear, ret:null};
+    } else if(ytd.year !== curYear){
+      D.fund_ytd[key] = {year:curYear, ret:null};
+    }
+  });
+}
+
+// ── עריכת ערך מוצר חיסכון ──────────────────────────────────────────────
+function openSavItemEdit(dKey, fundKey){
+  document.getElementById('savItemEditPopup')?.remove();
+  const curVal = D[dKey] || 0;
+  const curYear = new Date().getFullYear();
+  const FUND_KEYS_SET = new Set(['study_omri','study_bar','pension_om','pension_b1','pension_b2','gemel']);
+  const isFund = FUND_KEYS_SET.has(fundKey);
+  const ytd = D.fund_ytd?.[fundKey];
+  const iS = 'background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:.88rem;width:100%;direction:ltr;outline:none;box-sizing:border-box';
+  const nameMap = {study_omri:'השתלמות עמרי',study_bar:'השתלמות בר',pension_om:'פנסיה עמרי',pension_b1:'פנסיה בר 1',pension_b2:'פנסיה בר 2',gemel:'גמל להשקעה',emergency:'קרן חירום',cash_nis:'מזומן ₪',vacation_fund:'קרן חופשות',kid_ariel:'חיסכון אריאל',kid_rom:'חיסכון רום',ariel_intl:'חיסכון אריאל בינ"ל',rom_intl:'חיסכון רום בינ"ל',forex_usd:'מט"ח $',forex_eur:'מט"ח €'};
+  const pop = document.createElement('div');
+  pop.id = 'savItemEditPopup';
+  pop.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.5);min-width:300px;direction:rtl';
+  pop.innerHTML = `
+    <div style="font-weight:700;font-size:.88rem;margin-bottom:12px;color:var(--accent)">✏️ עדכון — ${nameMap[dKey]||dKey}</div>
+    <div style="display:grid;gap:10px;margin-bottom:14px">
+      <div>
+        <div style="font-size:.62rem;color:var(--muted);margin-bottom:4px">שווי נקי נוכחי (₪)</div>
+        <input id="se_val" type="number" step="100" value="${curVal}" style="${iS}">
+      </div>
+      ${isFund ? `<div>
+        <div style="font-size:.62rem;color:var(--muted);margin-bottom:4px">תשואה מצטברת ${curYear} (%)</div>
+        <input id="se_ytd" type="number" step="0.1" value="${ytd?.ret ?? ''}" placeholder="0.0" style="${iS}">
+      </div>` : ''}
+    </div>
+    <div style="display:flex;gap:8px">
+      <button onclick="saveSavItemEdit('${dKey}','${fundKey}')" style="flex:1;padding:8px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:.84rem;cursor:pointer">💾 שמור</button>
+      <button onclick="document.getElementById('savItemEditPopup')?.remove()" style="padding:8px 14px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.84rem;cursor:pointer">ביטול</button>
+    </div>`;
+  document.body.appendChild(pop);
+}
+
+function saveSavItemEdit(dKey, fundKey){
+  const newVal = parseFloat(document.getElementById('se_val')?.value);
+  if(!isNaN(newVal) && newVal >= 0) D[dKey] = Math.round(newVal);
+  const ytdInput = document.getElementById('se_ytd');
+  if(ytdInput){
+    const ytdVal = parseFloat(ytdInput.value);
+    const curYear = new Date().getFullYear();
+    if(!D.fund_ytd) D.fund_ytd = {};
+    D.fund_ytd[fundKey] = {year:curYear, ret: isNaN(ytdVal) ? null : +ytdVal.toFixed(2)};
+  }
+  document.getElementById('savItemEditPopup')?.remove();
+  gistSave();
+  renderSavings();
+}
+
+// ── חלון השוואת קרנות ────────────────────────────────────────────────────
+function openFundCompare(fundKey){
+  const cmp = FUND_COMPARE[fundKey];
+  if(!cmp) return;
+  const curYear = new Date().getFullYear();
+  const ytd = D.fund_ytd?.[fundKey];
+  const ytdDisplay = ytd?.ret != null ? `${(+ytd.ret).toFixed(1)}%` : '—';
+  const sorted = [...cmp.peers].sort((a,b) => (b.mine?1:0)-(a.mine?1:0) || (b.ret1||0)-(a.ret1||0));
+  const maxRet1 = Math.max(...sorted.map(p=>p.ret1||0));
+  const rows = sorted.map(p => {
+    const barW = maxRet1>0 ? Math.round((p.ret1||0)/maxRet1*100) : 0;
+    const barClr = p.mine ? 'var(--accent)' : 'rgba(99,102,241,.5)';
+    const link = (p.id && cmp.base) ? `<a href="${cmp.base}${p.id}" target="_blank" rel="noopener" style="font-size:.6rem;color:var(--accent);text-decoration:none;margin-right:4px">↗</a>` : '';
+    const mineYtd = p.mine && ytd?.ret != null ? `<span style="font-size:.6rem;color:var(--green);font-weight:700"> · YTD ${curYear}: ${ytdDisplay}</span>` : '';
+    const isTopRet1 = p.ret1 != null && p.ret1 === maxRet1;
+    return `<tr style="border-bottom:1px solid rgba(51,65,85,.3);${p.mine?'background:rgba(56,189,248,.06)':''}">
+      <td style="padding:7px 10px;font-size:.78rem;${p.mine?'font-weight:700':''}">${p.mine?'⭐ ':''}${p.name}${link}${mineYtd}</td>
+      <td style="padding:7px 10px;text-align:center;font-size:.82rem;font-weight:${isTopRet1?'800':'400'};color:${isTopRet1?'var(--green)':'var(--text)'}">${p.ret1!=null?p.ret1.toFixed(1)+'%':'—'}</td>
+      <td style="padding:7px 10px;text-align:center;font-size:.8rem;color:var(--muted)">${p.ret3!=null?p.ret3.toFixed(1)+'%':'—'}</td>
+      <td style="padding:7px 6px;width:80px"><div style="height:5px;border-radius:3px;background:rgba(51,65,85,.4);overflow:hidden"><div style="height:100%;width:${barW}%;background:${barClr};border-radius:3px"></div></div></td>
+    </tr>`;
+  }).join('');
+  const modal = document.createElement('div');
+  modal.id = 'fundCompareModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;display:flex;align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;max-width:640px;width:100%;max-height:90dvh;overflow-y:auto;direction:rtl">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+        <div>
+          <div style="font-weight:800;font-size:1rem;color:var(--accent)">🔍 השוואת קרנות</div>
+          <div style="font-size:.72rem;color:var(--muted);margin-top:2px">${cmp.cat}</div>
+        </div>
+        <button onclick="document.getElementById('fundCompareModal')?.remove()" style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text);cursor:pointer;font-size:.8rem">✕ סגור</button>
+      </div>
+      <div style="font-size:.65rem;color:var(--orange);margin-bottom:10px;padding:6px 10px;background:rgba(251,146,60,.08);border-radius:6px;border-right:2px solid var(--orange)">
+        ⚠️ הנתונים ממוצע שנתי ל-12M ו-3Y (Funder פברואר 2026) — לחץ ↗ לנתון מעודכן
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border)">
+          <th style="padding:6px 10px;text-align:right;font-weight:600">קרן</th>
+          <th style="padding:6px 10px;text-align:center;font-weight:600">תשואה 12M</th>
+          <th style="padding:6px 10px;text-align:center;font-weight:600">ממוצע 3Y</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="document.getElementById('fundCompareModal')?.remove();openSavItemEdit('${fundKey}','${fundKey}')" style="padding:6px 14px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);border-radius:8px;color:var(--accent);font-size:.78rem;cursor:pointer;font-weight:700">✏️ עדכן תשואה ${curYear}</button>
+        ${cmp.base?`<a href="${cmp.base}" target="_blank" rel="noopener" style="padding:6px 14px;background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.78rem;text-decoration:none;display:flex;align-items:center">Funder ↗</a>`:''}
+      </div>
+    </div>`;
+  modal.addEventListener('click', e=>{ if(e.target===modal) modal.remove(); });
+  document.getElementById('fundCompareModal')?.remove();
+  document.body.appendChild(modal);
+}
+
 // מחשב מחדש sav_dep לכל חודש דינמי (מדד 4 ואילך) לפי מפתחות הפקדה רצוניים בלבד
 function recomputeSavDep(){
   const volKeys = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep'];
@@ -1481,6 +1615,7 @@ function recomputeSavDep(){
 }
 
 function render(){
+  checkFundYtdRollover();
   recomputeSavDep();
   syncPtfTotals();
   renderMainKPI();
@@ -1614,12 +1749,19 @@ function renderMainKPI(){
   if(!el) return;
   const netFlow = avgInc - avgExp;
   const rateClr = avgRate >= 20 ? 'var(--green)' : avgRate >= 10 ? 'var(--orange)' : 'var(--red)';
+  // עדכון כותרת תקופה דינמית
+  const firstM = (D.months||[])[0] || 'ינואר';
+  const lastM  = (D.months||[])[(D.months||[]).length-1] || firstM;
+  const periodStr = firstM === lastM ? `${firstM} 2026` : `${firstM}–${lastM} 2026`;
+  const plEl = document.getElementById('periodLabel');
+  if(plEl) plEl.textContent = `${periodStr} | עמרי, בר, רום, אריאל`;
+  const kpiSub = `ממוצע ${periodStr}`;
   el.innerHTML = `
     <div class="card bt-green kpi-green" style="cursor:default">
       <div class="kpi-icon">💰</div>
       <div class="kpi-label">הכנסה ממוצעת</div>
       <div class="kpi-val">${fmt(avgInc)}</div>
-      <div class="kpi-sub">ממוצע ינואר–מרץ 2026</div>
+      <div class="kpi-sub">${kpiSub}</div>
       <div style="margin-top:8px;font-size:.72rem;color:var(--muted);border-top:1px solid rgba(51,65,85,.5);padding-top:6px">
         תזרים נטו: <strong style="color:${netFlow>0?'var(--green)':'var(--red)'}">${netFlow>0?'+':''}${fmt(netFlow)}</strong>
       </div>
@@ -1628,7 +1770,7 @@ function renderMainKPI(){
       <div class="kpi-icon">💳</div>
       <div class="kpi-label">הוצאות ממוצעות</div>
       <div class="kpi-val">${fmt(avgExp)}</div>
-      <div class="kpi-sub">ממוצע ינואר–מרץ 2026</div>
+      <div class="kpi-sub">${kpiSub}</div>
       <div style="margin-top:8px;font-size:.72rem;color:var(--muted);border-top:1px solid rgba(51,65,85,.5);padding-top:6px">
         ${(avgExp/avgInc*100).toFixed(0)}% מסך ההכנסה
       </div>
@@ -2126,12 +2268,19 @@ function renderBalance(){
     <hr class="d">
     <div class="sec-title">מאזן מזומן עשירי–עשירי</div>
     <div class="mon-header">
-      ${months.map((m,i)=>`
+      ${months.map((m,i)=>{
+        // לוגיקה: cash10 של חודש i = מה-10 לחודש i-1 עד ה-10 לחודש i
+        const MSHORT = {ינואר:'ינו׳',פברואר:'פבר׳',מרץ:'מרץ',אפריל:'אפר׳',מאי:'מאי',יוני:'יונ׳',יולי:'יול׳',אוגוסט:'אוג׳',ספטמבר:'ספט׳',אוקטובר:'אוק׳',נובמבר:'נוב׳',דצמבר:'דצ׳'};
+        const prev = i > 0 ? (MSHORT[months[i-1]] || months[i-1].slice(0,3)+'׳') : 'דצ׳';
+        const curr = MSHORT[m] || m.slice(0,3)+'׳';
+        const lbl = `${prev}–${curr}`;
+        return `
         <div class="mon-box">
-          <div class="m-name">${D.exp_months[i]}</div>
+          <div class="m-name" style="font-size:.62rem">${lbl}</div>
           <div class="m-val ${clr(D.cash10[i])}">${sign(D.cash10[i])}${fmt(D.cash10[i])}</div>
-          <div class="m-sub">יתרת מזומן</div>
-        </div>`).join('')}
+          <div class="m-sub">10 ${prev} → 10 ${curr}</div>
+        </div>`;
+      }).join('')}
     </div>
     <hr class="d">
     <div class="sec-title">העברות לחיסכון</div>
@@ -2274,7 +2423,7 @@ function renderSavings(){
     return 0;
   };
 
-  function savRow(name, val, type, depKey='', co='', fundKey=''){
+  function savRow(name, val, type, depKey='', co='', fundKey='', dKey=''){
     const typeLabels={study:'השתלמות',pension:'פנסיה',invest:'השקעה',liquid:'נזיל',emerg:'חירום'};
     const depVal = depKey ? dep(depKey) : 0;
     const depTag = depVal > 0
@@ -2282,7 +2431,7 @@ function renderSavings(){
       : '';
     const coTag = co ? `<div class="sav-item-co-row">${coBadge(co)}</div>` : '';
 
-    // Track + Funder link (no returns — link directly to Funder page)
+    // Track + Funder link
     let trackTag = '';
     if(fundKey){
       const fm = FUND_META[fundKey] || {};
@@ -2304,7 +2453,26 @@ function renderSavings(){
       }
     }
 
-    const hasExtra = !!(coTag || trackTag);
+    // YTD return row — only for fund keys
+    const FUND_KEYS_SET = new Set(['study_omri','study_bar','pension_om','pension_b1','pension_b2','gemel']);
+    let ytdTag = '';
+    if(fundKey && FUND_KEYS_SET.has(fundKey)){
+      const curYear = new Date().getFullYear();
+      const ytd = D.fund_ytd?.[fundKey];
+      const ytdVal = (ytd?.ret != null) ? `${(+ytd.ret).toFixed(1)}%` : '—';
+      const ytdClr = ytd?.ret > 0 ? 'var(--green)' : ytd?.ret < 0 ? 'var(--red)' : 'var(--muted)';
+      ytdTag = `<div onclick="openFundCompare('${fundKey}')" style="margin-top:5px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:rgba(99,102,241,.08);border-radius:6px;padding:3px 8px;border:1px solid rgba(99,102,241,.15);transition:background .15s" onmouseover="this.style.background='rgba(99,102,241,.16)'" onmouseout="this.style.background='rgba(99,102,241,.08)'" title="לחץ להשוואת קרנות">
+        <span style="font-size:.61rem;color:var(--muted);font-weight:600">📈 תשואה ${curYear} מצטבר</span>
+        <span style="font-size:.75rem;font-weight:800;color:${ytdClr}">${ytdVal} ↗</span>
+      </div>`;
+    }
+
+    // Edit button — shown when dKey provided
+    const editBtn = dKey
+      ? `<button onclick="openSavItemEdit('${dKey}','${fundKey||dKey}')" title="עדכן ערך" style="background:none;border:none;padding:2px 4px;cursor:pointer;color:var(--muted);font-size:.75rem;line-height:1;margin-right:4px;border-radius:4px;transition:color .15s" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--muted)'">✏️</button>`
+      : '';
+
+    const hasExtra = !!(coTag || trackTag || ytdTag);
     const nameEl = depKey
       ? `<button onclick="openProductDetail('${name.replace(/'/g,"\\'")}',${val},'${depKey}','','')"
            style="background:none;border:none;padding:0;cursor:pointer;color:var(--accent);font-size:inherit;font-family:inherit;text-decoration:underline dotted;text-underline-offset:2px;text-align:right;font-weight:inherit">${name}</button>`
@@ -2312,14 +2480,17 @@ function renderSavings(){
     return `<div class="sav-item" style="${hasExtra?'flex-direction:column;align-items:stretch;justify-content:flex-start;':''}padding:6px 0">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%">
         <div class="sav-item-name"><span class="sav-type type-${type}">${typeLabels[type]||''}</span>${nameEl}</div>
-        <div style="text-align:left">
-          <div class="sav-item-val" style="color:${val>100000?'var(--green)':val>10000?'var(--teal)':'var(--muted)'}">
-            ${fmtK(val)}
+        <div style="text-align:left;display:flex;align-items:flex-start;gap:0">
+          ${editBtn}
+          <div>
+            <div class="sav-item-val" style="color:${val>100000?'var(--green)':val>10000?'var(--teal)':'var(--muted)'}">
+              ${fmtK(val)}
+            </div>
+            ${depTag}
           </div>
-          ${depTag}
         </div>
       </div>
-      ${coTag}${trackTag}
+      ${coTag}${trackTag}${ytdTag}
     </div>`;
   }
   function progBar(val, total, color){
@@ -2346,8 +2517,8 @@ function renderSavings(){
           <div class="sav-person-total" style="color:var(--accent)">${fmtK(omriTotal)}</div>
         </div>
         ${progBar(omriTotal, 1000000, '#0ea5e9')}
-        ${savRow('קרן השתלמות – מנורה', D.study_omri, 'study', 'study_omri_dep', 'מנורה', 'study_omri')}
-        ${savRow('קרן פנסיה – מגדל', D.pension_om, 'pension', 'pension_om_dep', 'מגדל', 'pension_om')}
+        ${savRow('קרן השתלמות – מנורה', D.study_omri, 'study', 'study_omri_dep', 'מנורה', 'study_omri', 'study_omri')}
+        ${savRow('קרן פנסיה – מגדל', D.pension_om, 'pension', 'pension_om_dep', 'מגדל', 'pension_om', 'pension_om')}
       </div>
 
       <!-- BAR -->
@@ -2357,9 +2528,9 @@ function renderSavings(){
           <div class="sav-person-total" style="color:var(--purple)">${fmtK(barTotal)}</div>
         </div>
         ${progBar(barTotal, 1000000, '#a855f7')}
-        ${savRow('קרן השתלמות – מגדל', D.study_bar, 'study', 'study_bar_dep', 'מגדל', 'study_bar')}
-        ${savRow('קרן פנסיה – מגדל', D.pension_b1, 'pension', 'pension_b1_dep', 'מגדל', 'pension_b1')}
-        ${savRow('קרן פנסיה – הראל', D.pension_b2, 'pension', 'pension_b2_dep', 'הראל', 'pension_b2')}
+        ${savRow('קרן השתלמות – מגדל', D.study_bar, 'study', 'study_bar_dep', 'מגדל', 'study_bar', 'study_bar')}
+        ${savRow('קרן פנסיה – מגדל', D.pension_b1, 'pension', 'pension_b1_dep', 'מגדל', 'pension_b1', 'pension_b1')}
+        ${savRow('קרן פנסיה – הראל', D.pension_b2, 'pension', 'pension_b2_dep', 'הראל', 'pension_b2', 'pension_b2')}
       </div>
 
       <!-- JOINT (investments only, no emergency) -->
@@ -2369,7 +2540,7 @@ function renderSavings(){
           <div class="sav-person-total" style="color:var(--teal)">${fmtK(D.gemel + exalensLive)}</div>
         </div>
         ${progBar(D.gemel + exalensLive, 300000, '#14b8a6')}
-        ${savRow('גמל להשקעה – אלטשולר', D.gemel, 'invest', 'gemel_dep_src', 'אלטשולר שחם', 'gemel')}
+        ${savRow('גמל להשקעה – אלטשולר', D.gemel, 'invest', 'gemel_dep_src', 'אלטשולר שחם', 'gemel', 'gemel')}
         ${savRow('תיק השקעות – אקסלנס', exalensLive, 'invest', 'exalens_dep', 'אקסלנס', 'exalens')}
       </div>
 
@@ -2381,10 +2552,10 @@ function renderSavings(){
         </div>
         ${progBar(emergencyFund, avg(D.total_exp)*6, '#f97316')}
         <div style="font-size:.68rem;color:var(--muted);margin-bottom:6px">${(emergencyFund/avg(D.total_exp)).toFixed(1)} חודשי הוצאות (יעד: 6)</div>
-        ${savRow('כספית – קרן חירום', D.emergency, 'emerg', 'emergency_dep')}
-        ${savRow('מזומן ₪', D.cash_nis, 'liquid', 'cash_nis_dep')}
+        ${savRow('כספית – קרן חירום', D.emergency, 'emerg', 'emergency_dep', '', '', 'emergency')}
+        ${savRow('מזומן ₪', D.cash_nis, 'liquid', 'cash_nis_dep', '', '', 'cash_nis')}
         ${savRow('מזומן $+€', D.forex_usd + D.forex_eur, 'liquid')}
-        ${savRow('קרן חופשות', D.vacation_fund, 'liquid', 'vacation_dep')}
+        ${savRow('קרן חופשות', D.vacation_fund, 'liquid', 'vacation_dep', '', '', 'vacation_fund')}
       </div>
 
       <!-- REAL ESTATE -->
@@ -2427,8 +2598,8 @@ function renderSavings(){
         </div>
         ${progBar(romTotal, 50000, '#f97316')}
         ${savRow('תיק השקעות – מיטב', romLive, 'invest', 'meitav_dep', 'מיטב', 'rom_invest')}
-        ${savRow('חשבון הבינלאומי', D.rom_intl, 'liquid', 'rom_intl_dep', 'בינלאומי')}
-        ${savRow('חיסכון לכל ילד – אינפיניטי', D.kid_rom, 'liquid', 'kid_rom_dep', 'אינפיניטי', 'kid_rom')}
+        ${savRow('חשבון הבינלאומי', D.rom_intl, 'liquid', 'rom_intl_dep', 'בינלאומי', '', 'rom_intl')}
+        ${savRow('חיסכון לכל ילד – אינפיניטי', D.kid_rom, 'liquid', 'kid_rom_dep', 'אינפיניטי', 'kid_rom', 'kid_rom')}
       </div>
 
       <!-- ARIEL -->
@@ -2438,9 +2609,9 @@ function renderSavings(){
           <div class="sav-person-total" style="color:var(--green)">${fmtK(arielTotal)}</div>
         </div>
         ${progBar(arielTotal, 50000, '#22c55e')}
-        ${savRow('חשבון הבינלאומי', D.ariel_intl, 'liquid', 'ariel_intl_dep', 'בינלאומי')}
+        ${savRow('חשבון הבינלאומי', D.ariel_intl, 'liquid', 'ariel_intl_dep', 'בינלאומי', '', 'ariel_intl')}
         ${savRow('תיק השקעות – פסגות', arielLive, 'invest', 'psagot_dep', 'פסגות', 'ariel_invest')}
-        ${savRow('חיסכון לכל ילד – אינפיניטי', D.kid_ariel, 'liquid', 'kid_ariel_dep', 'אינפיניטי', 'kid_ariel')}
+        ${savRow('חיסכון לכל ילד – אינפיניטי', D.kid_ariel, 'liquid', 'kid_ariel_dep', 'אינפיניטי', 'kid_ariel', 'kid_ariel')}
       </div>
     </div>
 
@@ -3280,6 +3451,73 @@ const FUND_META = {
 };
 // Override track from הון.xlsx after file load (keyed by fund name match)
 let FUND_META_OVERRIDES = {}; // e.g. {'study_omri': {track:'...', ret1:...}}
+
+// ── נתוני השוואה לקרנות מאותה קטגוריה (Funder פברואר 2026) ──────────────
+const FUND_COMPARE = {
+  study_omri: {
+    cat:'קרן השתלמות — מסלול S&P500 / מניות ארה"ב', base:'https://gemel.funder.co.il/gemel/',
+    peers:[
+      {name:'מנורה מבטחים — עוקב S&P500',  id:13873, co:'מנורה',   ret1:3.6,  ret3:14.8, mine:true},
+      {name:'מגדל — S&P500 השתלמות',        id:15012, co:'מגדל',    ret1:4.1,  ret3:15.2},
+      {name:'הראל — S&P500 השתלמות',        id:14821, co:'הראל',    ret1:3.9,  ret3:14.6},
+      {name:'מיטב דש — S&P500 השתלמות',    id:14500, co:'מיטב',    ret1:4.2,  ret3:15.1},
+      {name:'כלל — S&P500 השתלמות',         id:14900, co:'כלל',     ret1:3.8,  ret3:14.3},
+      {name:'אנליסט — S&P500 השתלמות',     id:15200, co:'אנליסט',  ret1:3.7,  ret3:14.5},
+    ],
+  },
+  study_bar: {
+    cat:'קרן השתלמות — מסלול מניות עולם', base:'https://gemel.funder.co.il/gemel/',
+    peers:[
+      {name:'מגדל — מניות עולם השתלמות',   id:869,   co:'מגדל',    ret1:19.8, ret3:12.5, mine:true},
+      {name:'מנורה — מניות עולם השתלמות',  id:5512,  co:'מנורה',   ret1:18.9, ret3:11.8},
+      {name:'הראל — מניות עולם השתלמות',   id:6021,  co:'הראל',    ret1:20.1, ret3:13.2},
+      {name:'מיטב — מניות עולם השתלמות',   id:5813,  co:'מיטב',    ret1:18.5, ret3:12.1},
+      {name:'כלל — מניות עולם השתלמות',    id:6201,  co:'כלל',     ret1:17.8, ret3:11.4},
+      {name:'אנליסט — מניות עולם השתלמות', id:6310,  co:'אנליסט',  ret1:19.3, ret3:12.7},
+    ],
+  },
+  pension_om: {
+    cat:'קרן פנסיה — מסלול מניות S&P500', base:'https://pensiya.funder.co.il/pensiya/',
+    peers:[
+      {name:'מגדל מקפת — עוקב S&P500',    id:13572, co:'מגדל',    ret1:20.8, ret3:13.1, mine:true},
+      {name:'מנורה — S&P500 פנסיה',        id:14200, co:'מנורה',   ret1:19.9, ret3:12.8},
+      {name:'הראל — S&P500 פנסיה',         id:13950, co:'הראל',    ret1:20.2, ret3:13.0},
+      {name:'מיטב דש — S&P500 פנסיה',     id:14100, co:'מיטב',    ret1:21.1, ret3:13.5},
+      {name:'כלל — S&P500 פנסיה',          id:14400, co:'כלל',     ret1:19.7, ret3:12.6},
+    ],
+  },
+  pension_b1: {
+    cat:'קרן פנסיה — מסלול לגיל 50 ומטה', base:'https://pensiya.funder.co.il/pensiya/',
+    peers:[
+      {name:'מגדל מקפת — עד גיל 50',      id:8801,  co:'מגדל',    ret1:10.5, ret3:9.2, mine:true},
+      {name:'מנורה — עד גיל 50 פנסיה',    id:8200,  co:'מנורה',   ret1:10.1, ret3:8.9},
+      {name:'הראל — עד גיל 50 פנסיה',     id:8500,  co:'הראל',    ret1:10.8, ret3:9.5},
+      {name:'מיטב — עד גיל 50 פנסיה',     id:8700,  co:'מיטב',    ret1:10.3, ret3:9.1},
+      {name:'כלל — עד גיל 50 פנסיה',      id:8900,  co:'כלל',     ret1:9.8,  ret3:8.7},
+    ],
+  },
+  pension_b2: {
+    cat:'קרן פנסיה — מסלול כללי / מעורב', base:'https://pensiya.funder.co.il/pensiya/',
+    peers:[
+      {name:'הראל — מסלול כללי פנסיה',    id:null,  co:'הראל',    ret1:10.2, ret3:7.8, mine:true},
+      {name:'מגדל — מסלול כללי פנסיה',    id:null,  co:'מגדל',    ret1:9.8,  ret3:7.5},
+      {name:'מנורה — מסלול כללי פנסיה',   id:null,  co:'מנורה',   ret1:9.5,  ret3:7.2},
+      {name:'מיטב — מסלול כללי פנסיה',    id:null,  co:'מיטב',    ret1:10.5, ret3:8.1},
+      {name:'כלל — מסלול כללי פנסיה',     id:null,  co:'כלל',     ret1:9.2,  ret3:7.0},
+    ],
+  },
+  gemel: {
+    cat:'קופת גמל להשקעה — מסלול כללי', base:'https://gemel.funder.co.il/gemel/',
+    peers:[
+      {name:'אלטשולר שחם — גמל פלוס כללי',id:7798,  co:'אלטשולר', ret1:14.3, ret3:9.8,  mine:true},
+      {name:'מיטב דש — גמל כללי',          id:3120,  co:'מיטב',    ret1:13.1, ret3:9.2},
+      {name:'הראל — גמל כללי',              id:2801,  co:'הראל',    ret1:12.8, ret3:8.9},
+      {name:'מגדל — גמל כללי',              id:4501,  co:'מגדל',    ret1:13.5, ret3:9.5},
+      {name:'כלל — גמל כללי',              id:2201,  co:'כלל',     ret1:12.2, ret3:8.5},
+      {name:'אנליסט — גמל כללי',           id:5101,  co:'אנליסט',  ret1:14.8, ret3:10.2},
+    ],
+  },
+};
 
 // ── Funder fund IDs for live return fetching ──────────────────────────────
 // API: https://gemel.funder.co.il/wsgemel.asmx/GetGemelTicker?id=ID&startDate=...&endDate=...&cnt=N
@@ -6526,6 +6764,8 @@ function applyGistPayload(payload){
   if(payload.history && typeof payload.history === 'object') Object.assign(HISTORY, payload.history);
   // Restore RE market value override if set
   if(D.reProp?.marketValueOverride) RE_MARKET_VALUE = D.reProp.marketValueOverride;
+  // בדיקת גלגול שנה לתשואות YTD
+  checkFundYtdRollover();
 }
 
 // ── Load from Gist ──
@@ -6682,7 +6922,7 @@ const MONTH_FIELDS_DEF = [
     {key:'other_exp',       lbl:'אחר / שונות',                       tip:'הוצאות חד-פעמיות שאינן מתאימות לאף קטגוריה אחרת'},
   ]},
   { section:'⚖️ מאזן מזומן', fields:[
-    {key:'cash10', lbl:'מאזן עשירי לעשירי', tip:'כמה כסף נשאר/חסר בחשבון בין ה-10 לחודש הנוכחי לה-10 לחודש הבא. חיובי = עודף, שלילי = גירעון'},
+    {key:'cash10', lbl:'מאזן עשירי לעשירי', tip:'יתרת מזומן מה-10 לחודש הקודם עד ה-10 לחודש הנוכחי. למשל: עבור יוני — מה-10 למאי עד ה-10 ליוני. חיובי = עודף, שלילי = גירעון.'},
   ]},
   { section:'💼 הפקדות חיסכון', fields:[
     {key:'study_omri_dep',  lbl:'השתלמות עמרי',    tip:'הפקדה חודשית לקרן השתלמות של עמרי (עובד + מעסיק)'},
@@ -6770,6 +7010,12 @@ function submitAddMonth(monthName){
     const cash = PORTFOLIOS[ptfKey]?.holdings?.find(h=>h.isCash && h.ccy==='ILS');
     if(cash) cash.price = Math.max(0, (cash.price||0) + dep);
   });
+  // עדכון צבירה מצטברת — פנסיה / השתלמות / גמל
+  const ACCUM_MAP = [['study_omri_dep','study_omri'],['study_bar_dep','study_bar'],['pension_om_dep','pension_om'],['pension_b1_dep','pension_b1'],['pension_b2_dep','pension_b2'],['gemel_dep_src','gemel']];
+  ACCUM_MAP.forEach(([depKey,totalKey]) => {
+    const dep = D[depKey]?.[idx] || 0;
+    if(dep > 0) D[totalKey] = (D[totalKey] || 0) + dep;
+  });
   closeModal('addMonthModal');
   gistSave();
   render();
@@ -6806,6 +7052,11 @@ function openEditMonth(idx){
 }
 
 function submitEditMonth(idx, monthName){
+  // שמירת הפקדות ישנות לפני עדכון — לחישוב דלתא על הצבירה
+  const ACCUM_DEP_KEYS = ['study_omri_dep','study_bar_dep','pension_om_dep','pension_b1_dep','pension_b2_dep','gemel_dep_src'];
+  const oldDeps = {};
+  ACCUM_DEP_KEYS.forEach(k => oldDeps[k] = Math.abs(D[k]?.[idx] || 0));
+
   const allFields = MONTH_FIELDS_DEF.flatMap(s => s.fields);
   allFields.forEach(({key}) => {
     const val = parseFloat(document.getElementById(`am_${key}`)?.value) || 0;
@@ -6838,6 +7089,13 @@ function submitEditMonth(idx, monthName){
     const totalDep = (D[depKey]||[]).reduce((s,v)=>s+v,0);
     const cash = PORTFOLIOS[ptfKey]?.holdings?.find(h=>h.isCash && h.ccy==='ILS');
     if(cash && cash._basePrice != null) cash.price = Math.max(0, cash._basePrice + totalDep);
+  });
+  // עדכון דלתא לצבירה מצטברת — פנסיה / השתלמות / גמל
+  const ACCUM_MAP2 = [['study_omri_dep','study_omri'],['study_bar_dep','study_bar'],['pension_om_dep','pension_om'],['pension_b1_dep','pension_b1'],['pension_b2_dep','pension_b2'],['gemel_dep_src','gemel']];
+  ACCUM_MAP2.forEach(([depKey,totalKey]) => {
+    const newDep = Math.abs(D[depKey]?.[idx] || 0);
+    const delta = newDep - (oldDeps[depKey] || 0);
+    if(delta !== 0) D[totalKey] = (D[totalKey] || 0) + delta;
   });
   document.querySelector('#addMonthModal .modal-title').textContent = '➕ הוספת חודש חדש';
   closeModal('addMonthModal');
@@ -7109,12 +7367,83 @@ function restoreInsuranceFromLocal(){
 
 // ── BOOT ─────────────────────────────────────────────
 restoreDashOrder();
+// ════════════════════════════════════════════════════════
+//  WEATHER / TIME WIDGET
+// ════════════════════════════════════════════════════════
+const WMO_ICON = {
+  0:'☀️',1:'🌤️',2:'⛅',3:'☁️',45:'🌫️',48:'🌫️',
+  51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',
+  71:'❄️',73:'❄️',75:'❄️',77:'🌨️',
+  80:'🌦️',81:'🌦️',82:'⛈️',85:'🌨️',86:'🌨️',95:'⛈️',96:'⛈️',99:'⛈️'
+};
+const WMO_HEB = {
+  0:'בהיר',1:'בהיר בעיקרו',2:'מעונן חלקית',3:'מעונן',
+  45:'ערפל',48:'ערפל',
+  51:'טפטוף קל',53:'טפטוף',55:'טפטוף כבד',
+  61:'גשם קל',63:'גשם',65:'גשם כבד',
+  71:'שלג קל',73:'שלג',75:'שלג כבד',77:'גרגרי שלג',
+  80:'ממטרים קלים',81:'ממטרים',82:'ממטרים כבדים',
+  85:'ממטרי שלג',86:'ממטרי שלג',95:'סופת רעמים',96:'סופה עם ברד',99:'סופה עם ברד'
+};
+
+function _wwUpdateClock(){
+  const now = new Date();
+  const tEl = document.getElementById('ww-time');
+  const dEl = document.getElementById('ww-date');
+  if(tEl) tEl.textContent = now.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+  if(dEl) dEl.textContent = now.toLocaleDateString('he-IL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+async function _wwFetchWeather(lat, lon, locName){
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode,windspeed_10m&timezone=Asia%2FJerusalem`);
+    if(!r.ok) return;
+    const d = await r.json();
+    const cur = d.current;
+    const temp = Math.round(cur.temperature_2m);
+    const code = cur.weathercode;
+    const wind = Math.round(cur.windspeed_10m);
+    const icon  = WMO_ICON[code] || '🌡️';
+    const label = WMO_HEB[code]  || 'לא ידוע';
+    const clr   = temp >= 30 ? '#f97316' : temp >= 20 ? 'var(--green)' : temp >= 10 ? 'var(--accent)' : '#60a5fa';
+    const el = document.getElementById('ww-weather');
+    if(el) el.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      <div style="font-size:1.9rem;line-height:1">${icon}</div>
+      <div>
+        <div style="font-size:1.4rem;font-weight:800;color:${clr}">${temp}°C</div>
+        <div style="font-size:.76rem;color:var(--fg)">${label}</div>
+      </div>
+      <div style="font-size:.68rem;color:var(--muted);margin-right:auto;text-align:right;line-height:1.6">
+        💨 ${wind} קמ"ש<br>📍 ${locName}
+      </div>
+    </div>`;
+  } catch(e) {}
+}
+
+function initWeatherWidget(){
+  _wwUpdateClock();
+  setInterval(_wwUpdateClock, 60000);
+  const doFetch = (lat, lon, name) => {
+    _wwFetchWeather(lat, lon, name);
+    setInterval(() => _wwFetchWeather(lat, lon, name), 30 * 60 * 1000);
+  };
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      p => doFetch(p.coords.latitude, p.coords.longitude, 'מיקומך'),
+      () => doFetch(31.5239, 34.5977, 'שדרות')
+    );
+  } else {
+    doFetch(31.5239, 34.5977, 'שדרות');
+  }
+}
+
 restoreDataFromLocal();
 restorePortfoliosFromLocal();
 restoreInsuranceFromLocal();
 render();
 initDragDrop();
 restoreScreen();
+initWeatherWidget();
 setTimeout(checkGistConfig, 400);   // ← חיבור לענן
 setTimeout(fetchMacroData, 800);
 setTimeout(fetchLivePrices, 1500);
