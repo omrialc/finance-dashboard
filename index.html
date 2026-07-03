@@ -1470,7 +1470,18 @@ function syncPtfTotals(){
   const ps = ptfLiveTotal('psagot');  if(ps > 0) D.ariel_invest= ps;
 }
 
+// מחשב מחדש sav_dep לכל חודש דינמי (מדד 4 ואילך) לפי מפתחות הפקדה רצוניים בלבד
+function recomputeSavDep(){
+  const volKeys = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep'];
+  const HARDCODED = 4;
+  if(!Array.isArray(D.sav_dep)) return;
+  for(let i = HARDCODED; i < D.sav_dep.length; i++){
+    D.sav_dep[i] = volKeys.reduce((s, k) => s + Math.abs(D[k]?.[i] || 0), 0);
+  }
+}
+
 function render(){
+  recomputeSavDep();
   syncPtfTotals();
   renderMainKPI();
   renderGoals();
@@ -6492,16 +6503,16 @@ function applyGistPayload(payload){
     }
     D._salarySwapFixed = true;
   }
-  // מיגרציה חד-פעמית: הסרת חיסכון לכל ילד (kid_ariel_dep + kid_rom_dep) מסכום sav_dep
-  if(!D._kidDepFixed) {
+  // מיגרציה חד-פעמית: חישוב מחדש של sav_dep לחודשים שנוספו דינמית (מינואר עד אפריל הם ידניים)
+  if(!D._savDepFixed2) {
+    const volKeys = ['gemel_dep_src','exalens_dep','meitav_dep','psagot_dep','ariel_intl_dep','rom_intl_dep','forex_usd_dep','forex_eur_dep','cash_nis_dep','vacation_dep','emergency_dep'];
+    const HARDCODED = 4; // ינואר-אפריל — נשמרים כמו שהם
     if(Array.isArray(D.sav_dep)) {
-      D.sav_dep = D.sav_dep.map((v, i) => {
-        const kidA = (D.kid_ariel_dep?.[i] || 0);
-        const kidR = (D.kid_rom_dep?.[i]   || 0);
-        return Math.max(0, v - kidA - kidR);
-      });
+      for(let i = HARDCODED; i < D.sav_dep.length; i++){
+        D.sav_dep[i] = volKeys.reduce((s, k) => s + Math.abs(D[k]?.[i] || 0), 0);
+      }
     }
-    D._kidDepFixed = true;
+    D._savDepFixed2 = true;
   }
   if(payload.portfolios){
     Object.entries(payload.portfolios).forEach(([k,v]) => {
